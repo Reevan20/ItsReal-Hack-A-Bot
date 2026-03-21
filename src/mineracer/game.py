@@ -1,25 +1,7 @@
 import pygame
-import serial
 import random
+import serial_handler
 
-
-# =======================
-# SERIAL CLASS (SEND ONLY)
-# =======================
-class SerialHandler:
-    def __init__(self, port='/dev/ttyACM0', baud=115200):
-        self.ser = serial.Serial(port, baud, timeout=1)
-
-    def send(self, msg: str):
-        self.ser.write((msg + "\n").encode())
-
-    def close(self):
-        self.ser.close()
-
-
-# =======================
-# GAME CLASS
-# =======================
 class Game:
     def __init__(self, serial_handler=None):
         pygame.init()
@@ -126,15 +108,3 @@ class Game:
             self.clock.tick(60)
 
         pygame.quit()
-
-
-# =======================
-# MAIN
-# =======================
-if __name__ == "__main__":
-    # serial_handler = SerialHandler('/dev/ttyACM0')
-
-    game = Game()
-    game.run()
-
-    # serial_handler.close()
