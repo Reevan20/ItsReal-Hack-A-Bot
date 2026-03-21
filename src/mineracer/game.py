@@ -1,94 +1,88 @@
 import pygame
-import random
+import serial
 
-# Initialize pygame
-pygame.init()
+DEVICE_PORT = '/dev/ttyACM0'
 
-# Screen settings
-WIDTH, HEIGHT = 600, 600
-ROWS, COLS = 12, 12
-CELL_SIZE = WIDTH // COLS
+# =======================
+# SERIAL CLASS (SEND ONLY)
+# =======================
+class SerialHandler:
+    def __init__(self, port=DEVIC_PORT, baud=115200):
+        self.ser = serial.Serial(port, baud, timeout=1)
 
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Minefield Crossing Game")
+    def send(self, msg: str):
+        self.ser.write((msg + "\n").encode())
 
-# Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GREEN = (0, 200, 0)
-RED = (200, 0, 0)
-BLUE = (0, 0, 200)
-GRAY = (200, 200, 200)
+    def close(self):
+        self.ser.close()
 
-# Player
-player_pos = [0, ROWS // 2]
 
-# Mines
-NUM_MINES = 20
-mines = set()
+# =======================
+# GAME CLASS
+# =======================
+class Game:
+    def __init__(self, serial_handler=None):
+        pygame.init()
+        self.screen = pygame.display.set_mode((600, 600))
+        pygame.display.set_caption("Minefield + Serial")
 
-while len(mines) < NUM_MINES:
-    x = random.randint(0, COLS - 1)
-    y = random.randint(0, ROWS - 1)
-    if [x, y] != player_pos and x != 0:
-        mines.add((x, y))
+        self.serial = serial_handler
 
-# Game loop
-running = True
-clock = pygame.time.Clock()
-# font = pygame.font.SysFont(None, 48)
+        self.player_pos = [5, 5]
+        self.clock = pygame.time.Clock()
+        self.running = True
 
-win = False
-lose = False
+    def move_player(self, direction):
+        if direction == "UP":
+            self.player_pos[1] -= 1
+        elif direction == "DOWN":
+            self.player_pos[1] += 1
+        elif direction == "LEFT":
+            self.player_pos[0] -= 1
+        elif direction == "RIGHT":
+            self.player_pos[0] += 1
 
-while running:
-    screen.fill(WHITE)
+        # Send to Pico at the SAME time
+        if self.serial:
+            self.serial.send(direction)
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.KEYDOWN and not (win or lose):
-            if event.key == pygame.K_UP:
-                player_pos[1] = max(0, player_pos[1] - 1)
-            elif event.key == pygame.K_DOWN:
-                player_pos[1] = min(ROWS - 1, player_pos[1] + 1)
-            elif event.key == pygame.K_LEFT:
-                player_pos[0] = max(0, player_pos[0] - 1)
-            elif event.key == pygame.K_RIGHT:
-                player_pos[0] = min(COLS - 1, player_pos[0] + 1)
+    def run(self):
+        while self.running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
 
-    # Check lose
-    if tuple(player_pos) in mines:
-        lose = True
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_UP:
+                        self.move_player("UP")
+                    elif event.key == pygame.K_DOWN:
+                        self.move_player("DOWN")
+                    elif event.key == pygame.K_LEFT:
+                        self.move_player("LEFT")
+                    elif event.key == pygame.K_RIGHT:
+                        self.move_player("RIGHT")
 
-    # Check win
-    if player_pos[0] == COLS - 1:
-        win = True
+            # Draw
+            self.screen.fill((30, 30, 30))
+            pygame.draw.rect(
+                self.screen,
+                (0, 200, 255),
+                (self.player_pos[0]*40, self.player_pos[1]*40, 40, 40)
+            )
 
-    # Draw grid
-    for row in range(ROWS):
-        for col in range(COLS):
-            rect = pygame.Rect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-            pygame.draw.rect(screen, GRAY, rect, 1)
+            pygame.display.flip()
+            self.clock.tick(60)
 
-    # Draw mines (hidden until lose)
-    for (mx, my) in mines:
-        rect = pygame.Rect(mx * CELL_SIZE, my * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-        pygame.draw.rect(screen, RED, rect)
+        pygame.quit()
 
-    # Draw player
-    rect = pygame.Rect(player_pos[0] * CELL_SIZE, player_pos[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-    pygame.draw.rect(screen, BLUE, rect)
 
-    # Draw goal column
-    for row in range(ROWS):
-        rect = pygame.Rect((COLS - 1) * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-        pygame.draw.rect(screen, GREEN, rect, 3)
+# =======================
+# MAIN
+# =======================
+if __name__ == "__main__":
+    serial_handler = SerialHandler('/dev/ttyACM0')
 
-    pygame.display.flip()
-    clock.tick(10)
+    game = Game(serial_handler)
+    game.run()
 
-    if win or lose:
-        running = False
-
-pygame.quit()
+    serial_handler.close()
