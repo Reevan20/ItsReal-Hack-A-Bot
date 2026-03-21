@@ -36,7 +36,7 @@ while len(mines) < NUM_MINES:
 # Game loop
 running = True
 clock = pygame.time.Clock()
-font = pygame.font.SysFont(None, 48)
+# font = pygame.font.SysFont(None, 48)
 
 win = False
 lose = False
@@ -72,10 +72,9 @@ while running:
             pygame.draw.rect(screen, GRAY, rect, 1)
 
     # Draw mines (hidden until lose)
-    if lose:
-        for (mx, my) in mines:
-            rect = pygame.Rect(mx * CELL_SIZE, my * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-            pygame.draw.rect(screen, RED, rect)
+    for (mx, my) in mines:
+        rect = pygame.Rect(mx * CELL_SIZE, my * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+        pygame.draw.rect(screen, RED, rect)
 
     # Draw player
     rect = pygame.Rect(player_pos[0] * CELL_SIZE, player_pos[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
@@ -86,15 +85,10 @@ while running:
         rect = pygame.Rect((COLS - 1) * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE)
         pygame.draw.rect(screen, GREEN, rect, 3)
 
-    # Display messages
-    if win:
-        text = font.render("YOU WIN!", True, GREEN)
-        screen.blit(text, (WIDTH // 2 - 100, HEIGHT // 2))
-    elif lose:
-        text = font.render("GAME OVER", True, RED)
-        screen.blit(text, (WIDTH // 2 - 120, HEIGHT // 2))
-
     pygame.display.flip()
     clock.tick(10)
+
+    if win or lose:
+        running = False
 
 pygame.quit()
