@@ -1,5 +1,6 @@
-from machine import Pin
+from machine import Pin, SPI
 from time import sleep
+from nrf24l01 import NRF24L01
 
 # Motor A (Left)
 IN1 = Pin(2, Pin.OUT)
@@ -50,7 +51,7 @@ def right():
     IN4.low()
 
 def init_test():
-	forward()
+    forward()
     sleep(2)
 
     left()
@@ -63,5 +64,46 @@ def init_test():
     sleep(2)
 
 
+# --- Nain ---
+# ---- NRF24L01 SETUP ---- #
+
+spi = SPI(0, baudrate=4000000, polarity=0, phase=0,
+          sck=Pin(18), mosi=Pin(19), miso=Pin(16))
+
+csn = Pin(10, Pin.OUT)
+ce = Pin(9, Pin.OUT)
+
+nrf = NRF24L01(spi, csn, ce, payload_size=32)
+
+# Pipe address (must match transmitter)
+pipe = b"buggy"
+nrf.open_rx_pipe(1, pipe)
+nrf.start_listening()
+
+
 while True:
-	init_test()    
+    init_test()    
+
+    if nrf.any():
+        try:
+            data = nrf.recv().decode().strip()
+            print("Received:", data)
+
+            # Expect format: "steering,throttle"
+            steering, throttle = map(int, data.split(","))
+
+            if throttle == 0:
+                stop()
+            else:
+                if steering == 1:
+                    left()
+                elif steering == -1:
+                    right()
+                else:
+                    forward()
+
+        except Exception as e:
+            print("Error:", e)
+            stop()
+
+    sleep(0.05)
