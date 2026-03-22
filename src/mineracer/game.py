@@ -1,85 +1,84 @@
 import pygame
 import random
+import math
 import serial_handler
 
+# =======================
+# GAME CLASS
+# =======================
 class Game:
     def __init__(self, serial_handler=None):
         pygame.init()
+
         self.width, self.height = 600, 600
-        self.rows, self.cols = 12, 12
-        self.cell_size = self.width // self.cols
-
         self.screen = pygame.display.set_mode((self.width, self.height))
-        pygame.display.set_caption("Minefield + Serial")
+        pygame.display.set_caption("Minefield - Directional Movement")
 
-        self.serial = serial_handler
+        self.serial_handler = serial_handler
 
-        self.player_pos = [0, self.rows // 2]
         self.clock = pygame.time.Clock()
         self.running = True
 
-        # Generate mines
-        self.mines = set()
-        self.num_mines = 25
-        while len(self.mines) < self.num_mines:
-            x = random.randint(0, self.cols - 1)
-            y = random.randint(0, self.rows - 1)
-            if (x, y) != tuple(self.player_pos):
-                self.mines.add((x, y))
+        # Player state
+        self.x = 50
+        self.y = self.height // 2
+        self.angle = 0  # degrees
+        self.speed = 2
+        self.turn_speed = 3
+        self.closest_distance = 999
+
+        # Mines
+        self.mines = []
+        for _ in range(30):
+            mx = random.randint(50, self.width - 50)
+            my = random.randint(50, self.height - 50)
+            self.mines.append((mx, my))
 
         self.game_over = False
         self.win = False
 
-    def move_player(self, direction):
-        if self.game_over or self.win:
-            return
+    def move_forward(self):
+        rad = math.radians(self.angle)
+        self.x += math.cos(rad) * self.speed
+        self.y += math.sin(rad) * self.speed
+        self.serial_handler.send('f')  # f for forward
 
-        if direction == "UP":
-            self.player_pos[1] = max(0, self.player_pos[1] - 1)
-        elif direction == "DOWN":
-            self.player_pos[1] = min(self.rows - 1, self.player_pos[1] + 1)
-        elif direction == "LEFT":
-            self.player_pos[0] = max(0, self.player_pos[0] - 1)
-        elif direction == "RIGHT":
-            self.player_pos[0] = min(self.cols - 1, self.player_pos[0] + 1)
+    def check_collision(self):
+        for mx, my in self.mines:
+            mine_distance = math.hypot(self.x - mx, self.y - my)
+            if mine_distance < self.closest_distance:
+                self.closest_distance = mine_distance
+            if mine_distance < 15:
+                self.game_over = True
+                self.serial_handler.send('l')  # lose
 
-        # Send to Pico
-        if self.serial:
-            self.serial.send(direction)
-
-        # Check mine collision
-        if tuple(self.player_pos) in self.mines:
-            self.game_over = True
-
-        # Check win condition
-        if self.player_pos[0] == self.cols - 1:
+        if self.x >= self.width - 20:
             self.win = True
+            self.serial_handler.send('w')  # win
 
-    def draw_grid(self):
-        for row in range(self.rows):
-            for col in range(self.cols):
-                rect = pygame.Rect(col * self.cell_size, row * self.cell_size,
-                                   self.cell_size, self.cell_size)
-                pygame.draw.rect(self.screen, (80, 80, 80), rect, 1)
-
-    def draw_mines(self):
-        for (mx, my) in self.mines:
-            rect = pygame.Rect(mx * self.cell_size, my * self.cell_size,
-                               self.cell_size, self.cell_size)
-            pygame.draw.rect(self.screen, (200, 0, 0), rect)
+        self.serial_handler.send(f'd{self.closest_distance}')  # distance
 
     def draw_player(self):
-        rect = pygame.Rect(self.player_pos[0] * self.cell_size,
-                           self.player_pos[1] * self.cell_size,
-                           self.cell_size, self.cell_size)
-        pygame.draw.rect(self.screen, (0, 200, 255), rect)
+        # Draw triangle pointing in direction
+        rad = math.radians(self.angle)
+
+        tip = (self.x + math.cos(rad) * 15,
+               self.y + math.sin(rad) * 15)
+
+        left = (self.x + math.cos(rad + 2.5) * 10,
+                self.y + math.sin(rad + 2.5) * 10)
+
+        right = (self.x + math.cos(rad - 2.5) * 10,
+                 self.y + math.sin(rad - 2.5) * 10)
+
+        pygame.draw.polygon(self.screen, (0, 200, 255), [tip, left, right])
+
+    def draw_mines(self):
+        for mx, my in self.mines:
+            pygame.draw.circle(self.screen, (200, 0, 0), (int(mx), int(my)), 8)
 
     def draw_goal(self):
-        for row in range(self.rows):
-            rect = pygame.Rect((self.cols - 1) * self.cell_size,
-                               row * self.cell_size,
-                               self.cell_size, self.cell_size)
-            pygame.draw.rect(self.screen, (0, 200, 0), rect, 3)
+        pygame.draw.rect(self.screen, (0, 200, 0), (self.width - 10, 0, 10, self.height))
 
     def run(self):
         while self.running:
@@ -87,24 +86,39 @@ class Game:
                 if event.type == pygame.QUIT:
                     self.running = False
 
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_UP:
-                        self.move_player("UP")
-                    elif event.key == pygame.K_DOWN:
-                        self.move_player("DOWN")
-                    elif event.key == pygame.K_LEFT:
-                        self.move_player("LEFT")
-                    elif event.key == pygame.K_RIGHT:
-                        self.move_player("RIGHT")
+            keys = pygame.key.get_pressed()
 
-            # Draw everything
+            if not self.game_over and not self.win:
+                if keys[pygame.K_LEFT]:
+                    self.angle -= self.turn_speed
+                    self.serial_handler.send('tl')  # turn left
+                if keys[pygame.K_RIGHT]:
+                    self.angle += self.turn_speed
+                    self.serial_handler.send('tr')  # turn rigth
+                if keys[pygame.K_UP]:
+                    self.move_forward()
+
+                self.check_collision()
+
+            # Draw
             self.screen.fill((30, 30, 30))
-            self.draw_grid()
-            self.draw_mines()  # Always visible
+            self.draw_mines()
             self.draw_goal()
             self.draw_player()
+
+            # End text
+            if self.game_over:
+                self.draw_text("GAME OVER", (200, 0, 0))
+            elif self.win:
+                self.draw_text("YOU WIN", (0, 200, 0))
 
             pygame.display.flip()
             self.clock.tick(60)
 
         pygame.quit()
+
+    def draw_text(self, text, color):
+        font = pygame.font.SysFont(None, 48)
+        surf = font.render(text, True, color)
+        rect = surf.get_rect(center=(self.width // 2, self.height // 2))
+        self.screen.blit(surf, rect)
