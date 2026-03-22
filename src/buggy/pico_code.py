@@ -10,6 +10,13 @@ IN2 = Pin(3, Pin.OUT)
 IN3 = Pin(4, Pin.OUT)
 IN4 = Pin(5, Pin.OUT)
 
+# RF transciever
+spi = SPI(0, baudrate=4_000_000, polarity=0, phase=0,
+          sck=Pin(18), mosi=Pin(19), miso=Pin(16))
+csn = Pin(10, Pin.OUT)
+ce = Pin(9, Pin.OUT)
+
+
 # ---- Motor Control Functions ---- #
 
 def stop():
@@ -67,19 +74,12 @@ def init_test():
 # --- Nain ---
 # ---- NRF24L01 SETUP ---- #
 
-spi = SPI(0, baudrate=4000000, polarity=0, phase=0,
-          sck=Pin(18), mosi=Pin(19), miso=Pin(16))
-
-csn = Pin(10, Pin.OUT)
-ce = Pin(9, Pin.OUT)
-
 nrf = NRF24L01(spi, csn, ce, payload_size=32)
 
 # Pipe address (must match transmitter)
 pipe = b"buggy"
 nrf.open_rx_pipe(1, pipe)
 nrf.start_listening()
-
 
 while True:
     init_test()    
