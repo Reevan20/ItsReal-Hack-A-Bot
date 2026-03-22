@@ -1,11 +1,9 @@
+
+from rf_handler import RFHandler
 import game
-import serial_handler
 
-# MAIN
 if __name__ == "__main__":
-    serial_handler = serial_handler.SerialHandler('/dev/ttyACM0')
+    rf = RFHandler()
 
-    game = game.Game()
+    game = game.Game(serial_handler=rf)
     game.run()
-
-    serial_handler.close()
