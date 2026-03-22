@@ -1,5 +1,5 @@
 from machine import Pin, SPI
-from time import sleep
+from time import sleep, ticks_ms, ticks_diff
 from nrf24l01 import NRF24L01
 
 # Motor A (Left)
@@ -16,6 +16,8 @@ spi = SPI(0, baudrate=4_000_000, polarity=0, phase=0,
 csn = Pin(10, Pin.OUT)
 ce = Pin(9, Pin.OUT)
 
+# LED
+LED = Pin(6, Pin.OUT)
 
 # ---- Motor Control Functions ---- #
 
@@ -70,6 +72,13 @@ def init_test():
     stop()
     sleep(2)
 
+def get_blink_interval(distance):
+    # Clamp distance range
+    distance = max(5, min(distance, 100))
+    
+    # Map distance → interval (fast when close)
+    # 5cm → 100ms, 100cm → 1000ms
+    return int(100 + (distance - 5) * (900 / 95))
 
 # --- Nain ---
 # ---- NRF24L01 SETUP ---- #
@@ -81,6 +90,10 @@ pipe = b"buggy"
 nrf.open_rx_pipe(1, pipe)
 nrf.start_listening()
 
+# ---- LED TIMING ---- #
+last_blink = ticks_ms()
+blink_interval = 500  # default ms
+
 while True:
     init_test()    
 
@@ -90,8 +103,10 @@ while True:
             print("Received:", data)
 
             # Expect format: "steering,throttle"
-            steering, throttle = map(int, data.split(","))
+            steering, throttle, distance = map(int, data.split(","))
 
+            blink_interval = get_blink_interval(distance)
+        
             if throttle == 0:
                 stop()
             else:
@@ -102,8 +117,14 @@ while True:
                 else:
                     forward()
 
+
         except Exception as e:
             print("Error:", e)
             stop()
 
-    sleep(0.05)
+    now = ticks_ms()
+    if ticks_diff(now, last_blink) >= blink_interval:
+        led.toggle()
+        last_blink = now
+
+    sleep(0.01)
