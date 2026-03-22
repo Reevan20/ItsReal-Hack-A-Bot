@@ -1,20 +1,20 @@
 import pygame
 import random
 import math
-import serial_handler
+import rf_handler
 
 # =======================
 # GAME CLASS
 # =======================
 class Game:
-    def __init__(self, serial_handler=None):
+    def __init__(self, rf_handler=None):
         pygame.init()
 
         self.width, self.height = 600, 600
         self.screen = pygame.display.set_mode((self.width, self.height))
         pygame.display.set_caption("Minefield - Directional Movement")
 
-        self.serial_handler = serial_handler
+        self.rf_handler = rf_handler
 
         self.clock = pygame.time.Clock()
         self.running = True
@@ -23,6 +23,8 @@ class Game:
         self.x = 50
         self.y = self.height // 2
         self.angle = 0  # degrees
+		self.turning = 0
+		self.throttle = 0
         self.speed = 2
         self.turn_speed = 3
         self.closest_distance = 999
@@ -41,7 +43,6 @@ class Game:
         rad = math.radians(self.angle)
         self.x += math.cos(rad) * self.speed
         self.y += math.sin(rad) * self.speed
-        self.serial_handler.send('f')  # f for forward
 
     def check_collision(self):
         for mx, my in self.mines:
@@ -56,7 +57,6 @@ class Game:
             self.win = True
             self.serial_handler.send('w')  # win
 
-        self.serial_handler.send(f'd{self.closest_distance}')  # distance
 
     def draw_player(self):
         # Draw triangle pointing in direction
@@ -88,17 +88,22 @@ class Game:
 
             keys = pygame.key.get_pressed()
 
+			self.throttle = 0
+			self.turning = 0
+
             if not self.game_over and not self.win:
                 if keys[pygame.K_LEFT]:
                     self.angle -= self.turn_speed
-                    self.serial_handler.send('tl')  # turn left
+					self.turing = 1
                 if keys[pygame.K_RIGHT]:
                     self.angle += self.turn_speed
-                    self.serial_handler.send('tr')  # turn rigth
+					self.turing = -1
                 if keys[pygame.K_UP]:
                     self.move_forward()
+					self.throttle = 1
 
                 self.check_collision()
+				self.rf_hanlder.send(f'{self.turning}, {self.throttle}, {self.closest_distance}')
 
             # Draw
             self.screen.fill((30, 30, 30))
