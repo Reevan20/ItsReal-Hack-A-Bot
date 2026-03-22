@@ -2,6 +2,7 @@ import pygame
 import random
 import math
 import rf_handler
+import joystick_handler
 
 # =======================
 # GAME CLASS
@@ -15,6 +16,7 @@ class Game:
         pygame.display.set_caption("Minefield - Directional Movement")
 
         self.rf_handler = rf_handler
+        self.joystick_handler = joystick_handler
 
         self.clock = pygame.time.Clock()
         self.running = True
@@ -23,8 +25,6 @@ class Game:
         self.x = 50
         self.y = self.height // 2
         self.angle = 0  # degrees
-		self.turning = 0
-		self.throttle = 0
         self.speed = 2
         self.turn_speed = 3
         self.closest_distance = 999
@@ -87,23 +87,18 @@ class Game:
                     self.running = False
 
             keys = pygame.key.get_pressed()
-
-			self.throttle = 0
-			self.turning = 0
+			steering, throttle = self.joystick_handler.read()
 
             if not self.game_over and not self.win:
-                if keys[pygame.K_LEFT]:
+                if steering == 1:
                     self.angle -= self.turn_speed
-					self.turing = 1
-                if keys[pygame.K_RIGHT]:
+                elif steering == -1:
                     self.angle += self.turn_speed
-					self.turing = -1
-                if keys[pygame.K_UP]:
+                elif throttle == 1:
                     self.move_forward()
-					self.throttle = 1
 
                 self.check_collision()
-				self.rf_hanlder.send(f'{self.turning}, {self.throttle}, {self.closest_distance}')
+				self.rf_hanlder.send(f'{steering}, {throttle}, {self.closest_distance}')
 
             # Draw
             self.screen.fill((30, 30, 30))
